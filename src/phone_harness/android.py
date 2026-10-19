@@ -340,9 +340,18 @@ class Android(Backend):
                       self._sh("dumpsys window"))
         if m:
             return m.group(1) == "true"
+        # A policy read the build refuses is not an adb failure either:
+        # `dumpsys window` already answered on this connection. It counts
+        # as "no indicators" and falls through to LockStateUnknown —
+        # letting the RuntimeError escape would be mapped to no-adb by
+        # _session_state, the exact misreport this fallback exists to kill.
+        try:
+            policy = self._sh("dumpsys window policy")
+        except RuntimeError:
+            policy = ""
         seen = re.findall(
             r"(?:mIsShowing|showing|mInputRestricted|inputRestricted)"
-            r"=(true|false)", self._sh("dumpsys window policy"))
+            r"=(true|false)", policy)
         if seen:
             return "true" in seen
         raise LockStateUnknown(

@@ -188,6 +188,25 @@ class LockState(unittest.TestCase):
         with self.assertRaises(LockStateUnknown):
             phone._screen_status()
 
+    def test_a_failed_policy_read_fails_closed_not_no_adb(self):
+        # Review on #143: `dumpsys window` answered but the build refuses
+        # the policy dump (the shell raises RuntimeError). That counts as
+        # "no indicators" — it must reach LockStateUnknown, not escape as
+        # a plain RuntimeError that _session_state maps to no-adb.
+        phone = self.phone(self.dumps("no keyguard field on this build"))
+        real_sh = phone._sh
+
+        def sh(cmd, timeout=60):
+            if cmd == "dumpsys window policy":
+                raise RuntimeError("Can't find service: policy")
+            return real_sh(cmd, timeout=timeout)
+
+        phone._sh = sh
+        with self.assertRaises(LockStateUnknown):
+            phone._screen_status()
+        phone._resolve = lambda: "USB1"
+        self.assertEqual(phone._session_state(), "lock-unknown")
+
     def test_session_state_reports_lock_unknown_not_no_adb(self):
         phone = self.phone(self.dumps("nothing known", "nothing known either"))
         phone._resolve = lambda: "USB1"
